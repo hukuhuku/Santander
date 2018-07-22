@@ -10,11 +10,12 @@ from contextlib import contextmanager
 
 import pandas as pd
 
+import argparse
+import inspect
 
-from spica.utils import timer
 
 
-def get_arguments(description):
+def get_arguments(description = None):
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--force', '-f', action='store_true', help='Overwrite existing files')
     return parser.parse_args()
@@ -32,6 +33,7 @@ def generate_features(namespace, overwrite):
             print(f.name, 'was skipped')
         else:
             f.run().save()
+            
 @contextmanager
 def timer(name):
     t0 = time.time()
