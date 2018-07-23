@@ -28,7 +28,7 @@ def get_beautiful_test(test):
     test = test.iloc[non_ugly_indexes].reset_index(drop=True)
     return test, non_ugly_indexes, ugly_indexes
 
-def _get_leak(df, cols, lag=0):
+def get_leak(df, cols, lag=0):
     #lagの分だけずらしてtuple型にする、一致だったら時系列的にあってると解釈できる
     d1 = df[cols[:-lag-2]].apply(tuple, axis=1).to_frame().rename(columns={0: 'key'})
     d2 = df[cols[lag+2:]].apply(tuple, axis=1).to_frame().rename(columns={0: 'key'})
