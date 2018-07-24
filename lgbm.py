@@ -99,7 +99,7 @@ def main():
     #y[['ID', 'target', 'predictions']].to_csv('reduced_set_oof.csv', index=False)
     sub['target'] = np.expm1(sub_preds)
     name = "_".join(feats)
-    sub[['ID', 'target']].to_csv('./output/{}_lgbm.csv'.format(feats), index=False)
+    sub[['ID', 'target']].to_csv('./output/{}_lgbm.csv'.format(name), index=False)
 
 
 if __name__ == '__main__':
