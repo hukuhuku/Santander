@@ -14,7 +14,6 @@ import argparse
 import inspect
 
 
-
 def get_arguments(description = None):
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--force', '-f', action='store_true', help='Overwrite existing files')
@@ -51,8 +50,8 @@ class Feature(metaclass=ABCMeta):
         self.name = self.__class__.__name__
         self.train = pd.DataFrame()
         self.test = pd.DataFrame()
-        self.train_path = Path(self.dir) / f'{self.name}_train.ftr'
-        self.test_path = Path(self.dir) / f'{self.name}_test.ftr'
+        self.train_path = Path(self.dir) / f'./data/{self.name}_train.ftr'
+        self.test_path = Path(self.dir) / f'./data/{self.name}_test.ftr'
     
     def run(self):
         with timer(self.name):
@@ -65,6 +64,36 @@ class Feature(metaclass=ABCMeta):
     
     @abstractmethod
     def create_features(self):
+        raise NotImplementedError
+    
+    def save(self):
+        self.train.to_feather(str(self.train_path))
+        self.test.to_feather(str(self.test_path))
+
+
+class Leak(metaclass=ABCMeta):
+    prefix = ''
+    suffix = ''
+    dir = '.'
+    
+    def __init__(self):
+        self.name = self.__class__.__name__
+        self.train = pd.DataFrame()
+        self.test = pd.DataFrame()
+        self.train_path = Path(self.dir) / f'./data/{self.name}_train.ftr'
+        self.test_path = Path(self.dir) / f'./data/{self.name}_test.ftr'
+    
+    def run(self):
+        with timer(self.name):
+            self.create_features()
+            prefix = self.prefix + '_' if self.prefix else ''
+            suffix = '_' + self.suffix if self.suffix else ''
+            self.train.columns = prefix + self.train.columns + suffix
+            self.test.columns = prefix + self.test.columns + suffix
+        return self
+    
+    @abstractmethod
+    def find_leak(self):
         raise NotImplementedError
     
     def save(self):
