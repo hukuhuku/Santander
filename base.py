@@ -1,7 +1,6 @@
 #This code written by amaotone
 #https://amalog.hateblo.jp/entry/kaggle-feature-management
 
-
 import re
 import time
 from abc import ABCMeta, abstractmethod
@@ -32,7 +31,8 @@ def generate_features(namespace, overwrite):
             print(f.name, 'was skipped')
         else:
             f.run().save()
-            
+
+
 @contextmanager
 def timer(name):
     t0 = time.time()
@@ -85,7 +85,7 @@ class Leak(metaclass=ABCMeta):
     
     def run(self):
         with timer(self.name):
-            self.create_features()
+            self.find_leak()
             prefix = self.prefix + '_' if self.prefix else ''
             suffix = '_' + self.suffix if self.suffix else ''
             self.train.columns = prefix + self.train.columns + suffix
