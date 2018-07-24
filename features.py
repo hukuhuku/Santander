@@ -5,6 +5,8 @@ import numpy as np
 from scipy.stats import skew
 
 from sklearn import random_projection
+from sklearn.decomposition import PCA
+from sklearn.decomposition import TruncatedSVD
 
 class select_features(Feature):
     def create_features(self):
@@ -20,6 +22,11 @@ class select_features(Feature):
             ]
         self.train = train[select]
         self.test = test[select]
+
+class raw_data(Feature):
+    def create_features(self):
+        self.train = train
+        self.test = test
 
 class statics(Feature):
     def create_features(self):
@@ -60,6 +67,20 @@ class RandomProjection(Feature):
         self.test = pd.DataFrame(transformer.transform(test))
         
         columns = ["RandomProjection{}".format(i) for i in range(n_com)]
+        self.train.columns = columns
+        self.test.columns = columns
+
+
+class tSVD(Feature):
+    def create_features(self):
+        n_com = 100
+
+        transformer =TruncatedSVD(n_components = n_com)
+        
+        self.train = pd.DataFrame(transformer.fit_transform(train))
+        self.test = pd.DataFrame(transformer.transform(test))
+        
+        columns = ["TruncatedSVD{}".format(i) for i in range(n_com)]
         self.train.columns = columns
         self.test.columns = columns
 
