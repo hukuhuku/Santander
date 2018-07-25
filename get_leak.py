@@ -7,6 +7,9 @@ from base import *
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
+import warnings
+warnings.filterwarnings('ignore')
+
 cols = ['f190486d6', '58e2e02e6', 'eeb9cd3aa', '9fd594eec', '6eef030c1', '15ace8c9f', 
         'fb0f5dbfe', '58e056e12', '20aa07010', '024c577b9', 'd6bb78916', 'b43a7cfd5', 
         '58232a6fb', '1702b5bf0', '324921c7b', '62e59a501', '2ec5b290f', '241f0f867', 
@@ -53,6 +56,7 @@ class find_leak_lags(Leak):
         for df in [train,test]:
             try:
                 tmp = df[["ID", "target"] + cols]
+                scores = []
             except:
                 tmp_train = tmp
                 tmp = df[["ID"]+cols]
@@ -63,6 +67,7 @@ class find_leak_lags(Leak):
             )
     
             leaky_cols = []
+            
 
             for i in tqdm(range(max_nlags)):
                 c = "leaked_target_"+str(i)
@@ -72,9 +77,21 @@ class find_leak_lags(Leak):
 
                 zeroleak = tmp["compiled_leak"]==0
                 tmp.loc[zeroleak, "compiled_leak"] = tmp.loc[zeroleak, c]
+                
+                try:
+                    scores.append(np.sqrt(mean_squared_error(y, np.log1p(tmp["compiled_leak"]).fillna(14.49))))
+                except:
+                    pass
 
             print("Leak values found ",sum(tmp["compiled_leak"] > 0))
-            
+
+            try:
+                best_score = np.min(scores)
+                best_lag = np.argmin(scores)
+                print('best_score', best_score, '\nbest_lag', best_lag)
+                del(score)
+            except:
+                pass
 
         self.train = tmp_train
         self.test = tmp
