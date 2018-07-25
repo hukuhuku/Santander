@@ -4,6 +4,9 @@ import numpy as np
 from functions import * 
 from base import *
 
+from sklearn.metrics import mean_squared_error
+from tqdm import tqdm
+
 cols = ['f190486d6', '58e2e02e6', 'eeb9cd3aa', '9fd594eec', '6eef030c1', '15ace8c9f', 
         'fb0f5dbfe', '58e056e12', '20aa07010', '024c577b9', 'd6bb78916', 'b43a7cfd5', 
         '58232a6fb', '1702b5bf0', '324921c7b', '62e59a501', '2ec5b290f', '241f0f867', 
@@ -23,40 +26,58 @@ def get_leak(df, cols, lag=0):
     return d1.merge(d3, how='left', on='key').pred.fillna(0)
 
 
+def get_beautiful_test(test):
+    #小数点以下2桁以上とそれ以外でpublicとprivateに分かれたりする
+    #それを分離
+    test_rnd = np.round(test.iloc[:, 1:], 2)
+    ugly_indexes = []
+    non_ugly_indexes = []
+    for idx in tqdm(range(len(test))):
+        if not np.all(
+            test_rnd.iloc[idx, :].values==test.iloc[idx, 1:].values
+        ):
+            ugly_indexes.append(idx)
+        else:
+            non_ugly_indexes.append(idx)
+    print(len(ugly_indexes), len(non_ugly_indexes))
+    np.save('test_ugly_indexes', np.array(ugly_indexes))
+    np.save('test_non_ugly_indexes', np.array(non_ugly_indexes))
+    test = test.iloc[non_ugly_indexes].reset_index(drop=True)
+    return test, non_ugly_indexes, ugly_indexes
+
+
 class find_leak_lags(Leak):
     def find_leak(self):
         max_nlags = len(cols) - 2
         
-        for df,self_df in [(train,self.train),(test,self.test)]:
+        for df in [train,test]:
             try:
                 tmp = df[["ID", "target"] + cols]
             except:
+                tmp_train = tmp
                 tmp = df[["ID"]+cols]
 
             tmp["compiled_leak"] = 0
-            tmp["nonzero_mean"] = train[transact_cols].apply(
+            tmp["nonzero_mean"] = df[transact_cols].apply(
                 lambda x: np.expm1(np.log1p(x[x!=0]).mean()), axis=1
             )
     
             leaky_cols = []
 
-            for i in range(max_nlags):
+            for i in tqdm(range(max_nlags)):
                 c = "leaked_target_"+str(i)
-                print("Processing lag",i)
 
-                tmp[c] = get_leak(tmp,cols,i)
+                tmp[c] = get_leak(df,cols,i)
                 leaky_cols.append(c)
 
-                tmp = train.join(
-                    tmp.set_index("ID")[leaky_cols+["compiled_leak", "nonzero_mean"]], 
-                    on="ID", how="left"
-                )[["ID", "target"] + cols + leaky_cols+["compiled_leak", "nonzero_mean"]]
-        
                 zeroleak = tmp["compiled_leak"]==0
                 tmp.loc[zeroleak, "compiled_leak"] = tmp.loc[zeroleak, c]
-            print("Leak values found in train",sum(tmp["compiled_leak"] > 0))
+
+            print("Leak values found ",sum(tmp["compiled_leak"] > 0))
             
-            self_df = tmp
+
+        self.train = tmp_train
+        self.test = tmp
 
 if __name__ == '__main__':
     args = get_arguments()
@@ -64,7 +85,8 @@ if __name__ == '__main__':
     train = pd.read_csv('input/train.csv')
     test = pd.read_csv('input/test.csv')
 
+    #get_beautiful_test(test)
     transact_cols = [f for f in train.columns if f not in ["ID", "target"]]
     y = np.log1p(train["target"]).values
     
-    find_leak_lags().run()
+    find_leak_lags().run().save()
