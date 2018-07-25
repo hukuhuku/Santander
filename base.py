@@ -80,7 +80,7 @@ class Leak(metaclass=ABCMeta):
         self.name = self.__class__.__name__
         self.train = pd.DataFrame()
         self.test = pd.DataFrame()
-        self.train_path = Path(self.dir) / f'./data/{self.name}_train.ftr'
+        self.train_path = Path(self.dir) / f'./data/{self.name}_train.csv'
         self.test_path = Path(self.dir) / f'./data/{self.name}_test.ftr'
     
     def run(self):
@@ -97,5 +97,5 @@ class Leak(metaclass=ABCMeta):
         raise NotImplementedError
     
     def save(self):
-        self.train.to_feather(str(self.train_path))
+        self.train.to_csv(str(self.train_path))
         self.test.to_feather(str(self.test_path))
