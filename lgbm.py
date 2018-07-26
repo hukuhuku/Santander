@@ -11,7 +11,6 @@ import gc
 gc.enable() 
 
 def get_data(feats):
-
     dfs = [pd.read_feather(f'./data/{f}_train.ftr') for f in feats]
     dfs.append(pd.read_csv("./input/train.csv")[["ID","target"]])
     X_train = pd.concat(dfs, axis=1)
@@ -19,9 +18,14 @@ def get_data(feats):
     dfs.append(pd.read_csv("./input/test.csv")["ID"])
     X_test = pd.concat(dfs, axis=1)
 
-    X_train.to_csv("Test.csv")
     return X_train, X_test
 
+def get_leak_indexes():
+    leak_indexes = np.load('test_leak_indexes.npy')
+    non_leak_indexes = np.load('test_non_leak_indexes.npy')
+
+    return leak_indexes,non_leak_indexes
+    
 
 def fit_predict(data, y, test):
     folds = KFold(n_splits=5, shuffle=True, random_state=1)
@@ -81,7 +85,9 @@ def main():
     # Get the data
     feats = ["RandomProjection","select_features","statics"]
     data, test = get_data(feats)
+    leak_indexes,not_leak_indexes  = get_leak_indexes()
 
+    
     # Get target and ids
     y = data[['ID', 'target']].copy()
     del data['target'], data['ID']
