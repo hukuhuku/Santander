@@ -7,6 +7,7 @@ from sklearn.model_selection import KFold
 from scipy.stats import skew
 import time
 import gc
+import tqdm
 
 gc.enable() 
 
@@ -21,11 +22,20 @@ def get_data(feats):
     return X_train, X_test
 
 def get_leak_indexes():
-    leak_indexes = np.load('test_leak_indexes.npy')
-    non_leak_indexes = np.load('test_non_leak_indexes.npy')
+    leak_indexes = np.load('./data/test_leak_indexes.npy')
+    non_leak_indexes = np.load('./data/test_non_leak_indexes.npy')
 
     return leak_indexes,non_leak_indexes
     
+def get_ugly_indexes():
+    ugly_indexes = np.load('./data/test_ugly_indexes.npy')
+    non_ugly_indexes = np.load('./data/test_non_ugly_indexes.npy')
+
+    return ugly_indexes,non_ugly_indexes
+
+def get_leak_test():
+    test_leak = pd.read_csv('./data/test_leak.csv')
+    return test_leak
 
 def fit_predict(data, y, test):
     folds = KFold(n_splits=5, shuffle=True, random_state=1)
@@ -84,8 +94,11 @@ def fit_predict(data, y, test):
 def main():
     # Get the data
     feats = ["RandomProjection","select_features","statics"]
+    
     data, test = get_data(feats)
-    leak_indexes,not_leak_indexes  = get_leak_indexes()
+    leak_test = get_leak_test()
+    leak_indexes,_ = get_leak_indexes()
+
 
     
     # Get target and ids
@@ -103,7 +116,9 @@ def main():
     # Store predictions
     #y['predictions'] = np.expm1(oof_preds)
     #y[['ID', 'target', 'predictions']].to_csv('reduced_set_oof.csv', index=False)
+    sub.loc[leak_indexes,"target"] = leak_test.loc[leak_indexes,"compiled_leak"]
     sub['target'] = np.expm1(sub_preds)
+    
     name = "_".join(feats)
     sub[['ID', 'target']].to_csv('./output/{}_lgbm.csv'.format(name), index=False)
 
