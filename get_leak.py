@@ -48,6 +48,13 @@ def get_beautiful_test(test):
     test = test.iloc[non_ugly_indexes].reset_index(drop=True)
     return test, non_ugly_indexes, ugly_indexes
 
+def rewrite_compiled_leak(leak_df, lag):
+    leak_df["compiled_leak"] = 0
+    for i in range(lag):
+        c = "leaked_target_"+str(i)
+        zeroleak = leak_df["compiled_leak"]==0
+        leak_df.loc[zeroleak, "compiled_leak"] = leak_df.loc[zeroleak, c]
+    return leak_df
 
 class find_leak_lags(Leak):
     def find_leak(self):
@@ -91,7 +98,13 @@ class find_leak_lags(Leak):
                 print('best_score', best_score, '\nbest_lag', best_lag)
                 del(score)
             except:
-                pass
+                tmp = rewrite_compiled_leak(tmp, best_lag)
+                
+                leak_index = tmp[tmp["compiled_leak"] >0].index
+                not_leak_index = tmp[tmp["compiled_leak"] == np.nan].index
+                np.save('test_leak_indeies', np.array(leak_index))
+                np.save('test_not_leak_indeies', np.array(not_leak_index))
+
 
         self.train = tmp_train
         self.test = tmp
