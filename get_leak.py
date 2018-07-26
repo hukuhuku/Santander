@@ -96,8 +96,9 @@ class find_leak_lags(Leak):
                 best_score = np.min(scores)
                 best_lag = np.argmin(scores)
                 print('best_score', best_score, '\nbest_lag', best_lag)
-                del(score)
+                del(scores)
             except:
+                best_lag = 29
                 tmp = rewrite_compiled_leak(tmp, best_lag)
                 
                 leak_index = tmp[tmp["compiled_leak"] >0].index
