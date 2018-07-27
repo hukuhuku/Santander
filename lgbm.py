@@ -8,34 +8,10 @@ from scipy.stats import skew
 import time
 import gc
 import tqdm
+from base import *
 
 gc.enable() 
 
-def get_data(feats):
-    dfs = [pd.read_feather(f'./data/{f}_train.ftr') for f in feats]
-    dfs.append(pd.read_csv("./input/train.csv")[["ID","target"]])
-    X_train = pd.concat(dfs, axis=1)
-    dfs = [pd.read_feather(f'./data/{f}_test.ftr') for f in feats]
-    dfs.append(pd.read_csv("./input/test.csv")["ID"])
-    X_test = pd.concat(dfs, axis=1)
-
-    return X_train, X_test
-
-def get_leak_indexes():
-    leak_indexes = np.load('./data/test_leak_indexes.npy')
-    non_leak_indexes = np.load('./data/test_non_leak_indexes.npy')
-
-    return leak_indexes,non_leak_indexes
-    
-def get_ugly_indexes():
-    ugly_indexes = np.load('./data/test_ugly_indexes.npy')
-    non_ugly_indexes = np.load('./data/test_non_ugly_indexes.npy')
-
-    return ugly_indexes,non_ugly_indexes
-
-def get_leak_test():
-    test_leak = pd.read_csv('./data/test_leak.csv')
-    return test_leak
 
 def fit_predict(data, y, test):
     folds = KFold(n_splits=5, shuffle=True, random_state=1)
@@ -93,14 +69,14 @@ def fit_predict(data, y, test):
 
 def main():
     # Get the data
-    feats = ["RandomProjection","select_features","statics"]
+    feats = ["select_features","statics"]
     
     data, test = get_data(feats)
     leak_test = get_leak_test()
     leak_indexes,_ = get_leak_indexes()
+    _,non_ugly_indexes = get_leak_indexes()
 
 
-    
     # Get target and ids
     y = data[['ID', 'target']].copy()
     del data['target'], data['ID']
@@ -116,7 +92,8 @@ def main():
     # Store predictions
     #y['predictions'] = np.expm1(oof_preds)
     #y[['ID', 'target', 'predictions']].to_csv('reduced_set_oof.csv', index=False)
-    sub.loc[leak_indexes,"target"] = leak_test.loc[leak_indexes,"compiled_leak"]
+
+    #sub.loc[non_ugly_indexes,"target"] = leak_test.loc[non_ugly_indexes,"compiled_leak"]
     sub['target'] = np.expm1(sub_preds)
     
     name = "_".join(feats)
