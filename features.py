@@ -15,8 +15,7 @@ def get_timecolumns():
         '58232a6fb', '1702b5bf0', '324921c7b', '62e59a501', '2ec5b290f', '241f0f867', 
         'fb49e4212', '66ace2992', 'f74e8f13d', '5c6487af1', '963a49cdc', '26fc93eb7', 
         '1931ccfdd', '703885424', '70feb1494', '491b9ee45', '23310aa6f', 'e176a204a', 
-        '6619d81fc', '1db387535', 
-        'fc99f9426', '91f701ba2', '0572565c2', '190db8488', 'adb64ff71', 'c47340d97', 'c5a231d81', '0ff32eb98'
+        '6619d81fc', '1db387535','fc99f9426', '91f701ba2', '0572565c2', '190db8488', 'adb64ff71', 'c47340d97', 'c5a231d81', '0ff32eb98'
        ]
 
 class select_features(Feature):
@@ -24,68 +23,7 @@ class select_features(Feature):
         select = get_timecolumns()
         self.train = train[select]
         self.test = test[select]
-"""
-＃整理中
-class RandomForestClassfier(Feature):
-    #https://www.kaggle.com/sggpls/pipeline-kernel-xgb-fe-lb1-39
-    def __init__(self):
-        Feature.__init__(self)
-        self.estimator = estimator
-        self.n_classes = n_classes
-        self.cv = cv
 
-    def get_rfc():
-        return RandomForestClassifier(
-        n_estimators=100,
-        max_features=0.5,
-        max_depth=None,
-        max_leaf_nodes=270,
-        min_impurity_decrease=0.0001,
-        random_state=123,
-        n_jobs=-1
-    )
-
-    def _get_labels(self, y):
-        y_labels = np.zeros(len(y))
-        y_us = np.sort(np.unique(y))
-        step = int(len(y_us) / self.n_classes)
-        
-        for i_class in range(self.n_classes):
-            if i_class + 1 == self.n_classes:
-                y_labels[y >= y_us[i_class * step]] = i_class
-            else:
-                y_labels[
-                    np.logical_and(
-                        y >= y_us[i_class * step],
-                        y < y_us[(i_class + 1) * step]
-                    )
-                ] = i_class
-        return y_labels
-
-
-
-    def create_features(self):
-        y = train["target"]
-        y_labels = self._get_labels(y)
-        cv = check_cv(self.cv, y_labels, classifier=is_classifier(self.estimator))
-        self.estimators_ = []
-        
-        for train_index, _ in cv.split(train, y_labels):
-            self.estimators_.append(
-                clone(self.estimator).fit(train[train_index], y_labels[train_index])
-            )
-
-        X_prob = np.zeros((test.shape[0], self.n_classes))
-        X_pred = np.zeros(test.shape[0])
-        
-        for estimator, (_, test) in zip(self.estimators_, cv.split(X)):
-            X_prob[test] = estimator.predict_proba(X[test])
-            X_pred[test] = estimator.predict(X[test])
-        return np.hstack([X_prob, np.array([X_pred]).T])
-
-
-"""
-        
 class raw_data(Feature):
     def create_features(self):
         self.train = train
@@ -125,7 +63,6 @@ class statics(Feature):
 class diff(Feature):
     #データが時系列なので変化の大きさなどを取得する
     def create_features(self):
-        print("OK")
         cols = get_timecolumns()
         
         self.train = pd.DataFrame(np.diff(train[cols]))
@@ -136,7 +73,21 @@ class diff(Feature):
         self.train.columns = columns
         self.test.columns = columns
     
-        
+class timespan(Feature):
+    def create_features(self):
+        cols = get_timecolumns()
+
+        for time in [3,10,20,30,len(cols)]:
+            for df,self_df in [(train,self.train),(test,self.test)]:
+                tmp_df = df[cols[:time]].replace({0:np.nan})
+                self_df["mean_{}".format(time)] = tmp_df.mean(axis=1)
+                self_df["sum_{}".format(time)]  = tmp_df.sum(axis=1)
+                self_df["diff_mean_{}".format(time)] = tmp_df.diff(axis=1).mean(axis=1)
+                self_df["min_{}".format(time)] = tmp_df.min(axis=1)
+                self_df["max_{}".format(time)] = tmp_df.max(axis=1)
+                self_df["count_not_0_{}".format(time)] = tmp_df.count(axis=1)
+ 
+
 class RandomProjection(Feature):
     def create_features(self):
         n_com = 100
