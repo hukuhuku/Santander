@@ -1,4 +1,7 @@
 #LB1.37
+import warnings
+warnings.filterwarnings('ignore')
+
 import numpy as np  # linear algebra
 import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
 import lightgbm as lgb
@@ -11,7 +14,6 @@ import tqdm
 from base import *
 
 gc.enable() 
-
 
 def fit_predict(data, y, test):
     folds = KFold(n_splits=5, shuffle=True, random_state=1)
@@ -69,34 +71,34 @@ def fit_predict(data, y, test):
 
 def main():
     # Get the data
-    feats = ["select_features","statics"]
+    feats = ["RandomProjection","statics"]
+    name = "_and_".join(feats)
+
+    print(name+" modeling start")
     
     data, test = get_data(feats)
     leak_test = get_leak_test()
-    leak_indexes,_ = get_leak_indexes()
-    _,non_ugly_indexes = get_leak_indexes()
-
-
-    # Get target and ids
-    y = data[['ID', 'target']].copy()
-    del data['target'], data['ID']
-    sub = test[['ID']].copy()
-    del test['ID']
-
+    leak_indexes,non_leak_indexes = get_leak_indexes()
+    #_,non_ugly_indexes = get_leak_indexes()
+    sub = test[["ID"]].copy()
+    del(test["ID"])
     # Free some memory
     gc.collect()
 
-    # Predict test target
-    oof_preds, sub_preds = fit_predict(data, y, test)
+    tmp = test.loc[leak_indexes]
+    tmp["target"] = leak_test.loc[leak_indexes,"compiled_leak"]
 
-    # Store predictions
-    #y['predictions'] = np.expm1(oof_preds)
-    #y[['ID', 'target', 'predictions']].to_csv('reduced_set_oof.csv', index=False)
+    data = pd.concat((data, tmp), axis=0, ignore_index=True)
+    y = data[['ID', 'target']].copy()
+    del data['target'], data['ID']
 
-    #sub.loc[non_ugly_indexes,"target"] = leak_test.loc[non_ugly_indexes,"compiled_leak"]
-    sub['target'] = np.expm1(sub_preds)
-    
-    name = "_".join(feats)
+    oof_preds, sub_preds = fit_predict(data, y, test.loc[non_leak_indexes])
+
+    sub["target"] = 0
+    sub.loc[non_leak_indexes,"target"] = sub_preds
+    sub.loc[leak_indexes,"target"] = tmp["target"]
+    sub['target'] = np.expm1(sub["target"])
+
     sub[['ID', 'target']].to_csv('./output/{}_lgbm.csv'.format(name), index=False)
 
 
