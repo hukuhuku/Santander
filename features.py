@@ -8,6 +8,14 @@ from sklearn import random_projection
 from sklearn.decomposition import TruncatedSVD
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection._split import check_cv
+from sklearn.decomposition import PCA
+
+def replace_columns(train,test,class_name,cols_len):
+    columns = ["{}{}".format(class_name,i) for i in range(cols_len)]
+    train.columns = columns
+    test.colummns = columns
+
+    return train,test
 
 def get_timecolumns():
     return ['f190486d6', '58e2e02e6', 'eeb9cd3aa', '9fd594eec', '6eef030c1', '15ace8c9f', 
@@ -100,6 +108,35 @@ class RandomProjection(Feature):
         self.train.columns = columns
         self.test.columns = columns
 
+
+class Principal_Component_Analysis(Feature):
+    def create_features(self):
+        n_com = 100
+
+        pca = PCA()
+
+        pca.fit(train)
+        self.train = pd.DataFrame(pca.transform(train))
+        self.test = pd.DataFrame(pca.transform(test))
+
+        t = pd.DataFrame(pca.explained_variance_ratio_)
+
+        #寄与度が50パーセントになるように
+        for i in range(1,len(t)):
+            t.loc[i] += t.loc[i-1]
+            if t.loc[i].values > 0.5:#need tune
+                end = i 
+                break
+        del(t)
+
+        self.train = self.train[self.train.columns[:end]]
+        self.test = self.test[self.test.columns[:end]]
+
+    
+        columns = ["PCA{}".format(i) for i in range(end)]
+        self.train.columns = columns
+        self.test.columns = columns
+        
 
 class tSVD(Feature):
     def create_features(self):
