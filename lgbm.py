@@ -96,8 +96,9 @@ def main():
 
     sub["target"] = 0
     sub.loc[non_leak_indexes,"target"] = sub_preds
-    sub.loc[leak_indexes,"target"] = tmp["target"]
     sub['target'] = np.expm1(sub["target"])
+    sub.loc[leak_indexes,"target"] = tmp["target"]
+    
 
     sub[['ID', 'target']].to_csv('./output/{}_lgbm.csv'.format(name), index=False)
 
