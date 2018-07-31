@@ -122,6 +122,6 @@ def get_ugly_indexes():
 
     return ugly_indexes,non_ugly_indexes
 
-def get_leak_test():
-    test_leak = pd.read_csv('./data/test_leak.csv')
-    return test_leak
+def get_leak_submission():
+    sub_leak = pd.read_csv('./output/baseline_leak.csv')
+    return sub_leak

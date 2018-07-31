@@ -71,22 +71,22 @@ def fit_predict(data, y, test):
 
 def main():
     # Get the data
-    feats = ["RandomProjection","statics"]
+    feats = ["RandomProjection","statics","Principal_Component_Analysis"]
     name = "_and_".join(feats)
 
     print(name+" modeling start")
     
     data, test = get_data(feats)
-    leak_test = get_leak_test()
+    sub = get_leak_submission()
     leak_indexes,non_leak_indexes = get_leak_indexes()
     #_,non_ugly_indexes = get_leak_indexes()
-    sub = test[["ID"]].copy()
+    
     del(test["ID"])
     # Free some memory
     gc.collect()
 
     tmp = test.loc[leak_indexes]
-    tmp["target"] = leak_test.loc[leak_indexes,"compiled_leak"]
+    tmp["target"] = sub.loc[leak_indexes,"target"]
 
     data = pd.concat((data, tmp), axis=0, ignore_index=True)
     y = data[['ID', 'target']].copy()
@@ -94,12 +94,8 @@ def main():
 
     oof_preds, sub_preds = fit_predict(data, y, test.loc[non_leak_indexes])
 
-    sub["target"] = 0
-    sub.loc[non_leak_indexes,"target"] = sub_preds
-    sub['target'] = np.expm1(sub["target"])
-    sub.loc[leak_indexes,"target"] = tmp["target"]
+    sub.loc[non_leak_indexes,"target"] = np.expm1(sub_preds)
     
-
     sub[['ID', 'target']].to_csv('./output/{}_lgbm.csv'.format(name), index=False)
 
 
