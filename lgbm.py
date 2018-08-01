@@ -93,9 +93,12 @@ def main():
     del data['target'], data['ID']
 
     oof_preds, sub_preds = fit_predict(data, y, test.loc[non_leak_indexes])
-
-    sub.loc[non_leak_indexes,"target"] = np.expm1(sub_preds)
-    
+    #sub.loc[non_leak_indexes,"target"] = np.expm1(sub_preds)
+    test = pd.read_csv("./input/test.csv")
+    cols = get_timecolumns()
+    sub.loc[non_leak_indexes,"target"] = test.loc[non_leak_indexes,cols].mean(axis=1)
+    sub.loc[sub["target"] == 0,"target"] = test.loc[non_leak_indexes].mean(axis=1)
+    print(sub)
     sub[['ID', 'target']].to_csv('./output/{}_lgbm.csv'.format(name), index=False)
 
 
