@@ -1,4 +1,3 @@
-#LB1.37
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -92,11 +91,20 @@ def main():
     y = data[['ID', 'target']].copy()
     del data['target'], data['ID']
 
-    oof_preds, sub_preds = fit_predict(data, y, test.loc[non_leak_indexes])
+    #oof_preds, sub_preds = fit_predict(data, y, test.loc[non_leak_indexes])
 
-    sub.loc[non_leak_indexes,"target"] = np.expm1(sub_preds)
-    
-    sub[['ID', 'target']].to_csv('./output/{}_lgbm.csv'.format(name), index=False)
+    test = pd.read_csv("./input/test.csv")
+    del(test["ID"])
+    cols = get_timecolumns()
+    sub.loc[non_leak_indexes,"target"] = test.loc[non_leak_indexes,cols].apply(
+        lambda x: np.expm1(np.log1p(x[x!=0]).mean()), axis=1
+    )
+    print(sub)
+    sub.loc[sub["target"].isnull(),"target"] = test.loc[sub["target"].isnull()].apply(
+        lambda x: np.expm1(np.log1p(x[x!=0]).mean()), axis=1
+    )
+    print(sub) 
+    sub[['ID', 'target']].to_csv('./output/nonzeromean_lgbm.csv'.format(name), index=False)
 
 
 if __name__ == '__main__':
