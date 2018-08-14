@@ -42,7 +42,7 @@ cols = ['f190486d6', '58e2e02e6', 'eeb9cd3aa', '9fd594eec', '6eef030c1', '15ace8
         'fc99f9426', '91f701ba2', '0572565c2', '190db8488', 'adb64ff71', 'c47340d97', 'c5a231d81', '0ff32eb98'
         ]
 
-cols2= [['ced6a7e91','9df4daa99','83c3779bf','edc84139a','f1e0ada11','73687e512','aa164b93b','342e7eb03',
+extra_cols= [['ced6a7e91','9df4daa99','83c3779bf','edc84139a','f1e0ada11','73687e512','aa164b93b','342e7eb03',
         'cd24eae8a','8f3740670','2b2a10857','a00adf70e','3a48a2cd2','a396ceeb9','9280f3d04','fec5eaf1a',
         '5b943716b','22ed6dba3','5547d6e11','e222309b0','5d3b81ef8','1184df5c2','2288333b4','f39074b55',
         'a8b721722','13ee58af1','fb387ea33','4da206d28','ea4046b8d','ef30f6be5','b85fa8b27','2155f5e16']
@@ -66,44 +66,39 @@ def get_beautiful_test(test):
     return test, non_ugly_indexes, ugly_indexes
 
 
-
-# from: https://www.kaggle.com/tezdhar/breaking-lb-fresh-start
-def _get_leak(df, cols, lag=0, verbose=False):
-    """ To get leak value, we do following:
-       1. Get string of all values after removing first two time steps
-       2. For all rows we shift the row by two steps and again make a string
-       3. Just find rows where string from 2 matches string from 1
-       4. Get 1st time step of row in 3 (Currently, there is additional condition to only fetch value if we got exactly one match in step 3)"""
-    series_str = df[cols[lag+2:]].apply(lambda x: "_".join(x.round(2).astype(str)), axis=1)
-    series_shifted_str = df[cols].shift(lag+2, axis=1)[cols[lag+2:]].apply(lambda x: "_".join(x.round(2).astype(str)), axis=1)
-    if verbose:
-        target_rows = series_shifted_str.progress_apply(lambda x: np.where(x == series_str)[0])
-    else:
-        target_rows = series_shifted_str.apply(lambda x: np.where(x == series_str)[0])
-    target_vals = target_rows.apply(lambda x: df.loc[x[0], cols[lag]] if len(x)==1 else 0)
-    return target_vals
-
-
-def fast_get_leak(df, cols,extra_feats, lag=0):
+def fast_get_leak(df, cols,extra_feats, lag=0):#Kyon
     f1 = cols[:-lag-2]
     f2 = cols[lag+2:]
     for ef in extra_feats:
-        f1 += ef[:(lag * -1)]
-        f2 += ef[lag:]
-
+        f1 += ef[:lag-2]
+        f2 += ef[lag+2:]
+        
     d1 = df[f1].apply(tuple, axis=1).to_frame().rename(columns={0: 'key'})
     d2 = df[f2].apply(tuple, axis=1).to_frame().rename(columns={0: 'key'})
     d2['pred'] = df[cols[lag]]
     #d2 = d2[d2.pred != 0] ### to make output consistent with Hasan's function
     d3 = d2[~d2.duplicated(['key'], keep=False)]
+    d4 = d1[~d1.duplicated(['key'], keep=False)]
+
+    print("del by duplicated_cols{} => {}".format(d1.shape[0],d4.shape[0]))
+    print("del by duplicated_cols{} => {}".format(d2.shape[0],d3.shape[0]))
     return d1.merge(d3, how='left', on='key').pred.fillna(0)
 
-def compiled_leak_result():
-    
-    max_nlags = len(cols) - 2
-    train_leak = train[["ID", "target"] + cols+cols2[0]]
-    train_leak["compiled_leak"] = 0
-    train_leak["nonzero_mean"] = train[transact_cols].apply(
+def compiled_leak_result(use_train=True):
+    if use_train:
+        df = train
+    else:
+        df = test
+
+    use_cols = ["ID","target"] + cols
+    for ef in extra_cols:
+        use_cols += ef
+
+    max_nlags = len(use_cols) - 2
+    df_leak = df[use_cols]
+
+    df_leak["compiled_leak"] = 0
+    df_leak["nonzero_mean"] = df[transact_cols].apply(
         lambda x: np.expm1(np.log1p(x[x!=0]).mean()), axis=1
     )
     
@@ -116,41 +111,35 @@ def compiled_leak_result():
         c = "leaked_target_"+str(i)
         
         print('Processing lag', i)
-        train_leak[c] = fast_get_leak(train_leak, cols,cols2, i)
+        df_leak[c] = fast_get_leak(df_leak, cols,extra_cols,i)
         
         leaky_cols.append(c)
-        train_leak = train.join(
-            train_leak.set_index("ID")[leaky_cols+["compiled_leak", "nonzero_mean"]], 
+        df_leak = df.join(
+            df_leak.set_index("ID")[leaky_cols+["compiled_leak", "nonzero_mean"]], 
             on="ID", how="left"
         )
-        zeroleak = train_leak["compiled_leak"]==0
-        train_leak.loc[zeroleak, "compiled_leak"] = train_leak.loc[zeroleak, c]
-        
+        zeroleak = df_leak["compiled_leak"]==0
+        df_leak.loc[zeroleak, "compiled_leak"] = df_leak.loc[zeroleak, c]
         leaky_value_counts.append(sum(train_leak["compiled_leak"] > 0))
         _correct_counts = sum(train_leak["compiled_leak"]==train_leak["target"])
-        if not _correct_counts == 0:
-            leaky_value_corrects.append(_correct_counts/leaky_value_counts[-1])
-            print("Leak values found in train", leaky_value_counts[-1])
-        else:
-            leaky_value_corrects.append(0)
-        print(
-                "% of correct leaks values in train ", 
-                leaky_value_corrects[-1]           
-                )
-        tmp = train_leak.copy()
-        tmp.loc[zeroleak, "compiled_leak"] = tmp.loc[zeroleak, "nonzero_mean"]
+        print("{} of correct leaks values in train ".format(leaky_value_corrects[-1]))
 
-        scores.append(np.sqrt(mean_squared_error(y, np.log1p(tmp["compiled_leak"]).fillna(14.49))))
-        print(
-            'Score (filled with nonzero mean)', 
-            scores[-1]
-        )
-    result = dict(
-        score=scores, 
-        leaky_count=leaky_value_counts,
-        leaky_correct=leaky_value_corrects,
-    )
-    return train_leak, result
+        if train:
+            tmp = df_leak.copy()
+            tmp.loc[zeroleak, "compiled_leak"] = tmp.loc[zeroleak, "nonzero_mean"]
+            scores.append(np.sqrt(mean_squared_error(y, np.log1p(tmp["compiled_leak"]).fillna(14.49))))
+            print('Score (filled with nonzero mean)', scores[-1])
+            result = dict(
+                score=scores, 
+                leaky_count=leaky_value_counts,
+                leaky_correct=leaky_value_corrects,
+            )
+        else:
+            result = dict(
+                leaky_count = leaky_value_counts
+            )
+    
+    return df_leak, result
 
 def rewrite_compiled_leak(leak_df, lag):
     leak_df["compiled_leak"] = 0
@@ -160,52 +149,6 @@ def rewrite_compiled_leak(leak_df, lag):
         leak_df.loc[zeroleak, "compiled_leak"] = leak_df.loc[zeroleak, c]
     return leak_df
 
-
-def compiled_leak_result_test(max_nlags):
-    test_leak = test[["ID", "target"] + cols+cols2[0]]
-    test_leak["compiled_leak"] = 0
-    test_leak["nonzero_mean"] = test[transact_cols].apply(
-        lambda x: np.expm1(np.log1p(x[x!=0]).mean()), axis=1
-    )
-    
-    scores = []
-    leaky_value_counts = []
-    # leaky_value_corrects = []
-    leaky_cols = []
-    
-    for i in range(max_nlags):
-        c = "leaked_target_"+str(i)
-        print('Processing lag', i)
-        test_leak[c] = fast_get_leak(test_leak, cols,cols2, i)
-        
-        leaky_cols.append(c)
-        test_leak = test.join(
-            test_leak.set_index("ID")[leaky_cols+["compiled_leak", "nonzero_mean"]], 
-            on="ID", how="left"
-        )[["ID", "target"] + cols + leaky_cols+["compiled_leak", "nonzero_mean"]]
-        zeroleak = test_leak["compiled_leak"]==0
-        test_leak.loc[zeroleak, "compiled_leak"] = test_leak.loc[zeroleak, c]
-        leaky_value_counts.append(sum(test_leak["compiled_leak"] > 0))
-        #_correct_counts = sum(train_leak["compiled_leak"]==train_leak["target"])
-        #leaky_value_corrects.append(_correct_counts/leaky_value_counts[-1])
-        print("Leak values found in test", leaky_value_counts[-1])
-        #print(
-        #    "% of correct leaks values in train ", 
-        #    leaky_value_corrects[-1]
-        #)
-        #tmp = train_leak.copy()
-        #tmp.loc[zeroleak, "compiled_leak"] = tmp.loc[zeroleak, "nonzero_mean"]
-        #scores.append(np.sqrt(mean_squared_error(y, np.log1p(tmp["compiled_leak"]).fillna(14.49))))
-        #print(
-        #    'Score (filled with nonzero mean)', 
-        #    scores[-1]
-        #)
-    result = dict(
-        # score=scores, 
-        leaky_count=leaky_value_counts,
-        # leaky_correct=leaky_value_corrects,
-    )
-    return test_leak, result
 
 
 def main():
