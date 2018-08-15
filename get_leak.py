@@ -25,9 +25,13 @@ from base import *
 import gc
 gc.collect();
 
-DATA_DIR = './input/'
-train = pd.read_csv(DATA_DIR+"train.csv")
-test = pd.read_csv(DATA_DIR+"test.csv")
+INPUT_DIR = './input/'
+OUTPUT_DIR = './output/'
+DATA_DIR = './data/'
+
+
+train = pd.read_csv(INPUT_DIR+"train.csv")
+test = pd.read_csv(INPUT_DIR+"test.csv")
 
 transact_cols = [f for f in train.columns if f not in ["ID", "target"]]
 y = np.log1p(train["target"]).values
@@ -66,7 +70,7 @@ def get_beautiful_test(test):
     return test, non_ugly_indexes, ugly_indexes
 
 
-def fast_get_leak(df, cols,extra_feats, lag=0):#Kyon
+def fast_get_leak(df, cols,extra_feats, lag=0):
     f1 = cols[:-lag-2]
     f2 = cols[lag+2:]
     for ef in extra_feats:
@@ -82,19 +86,24 @@ def fast_get_leak(df, cols,extra_feats, lag=0):#Kyon
 
     print("del by duplicated_cols{} => {}".format(d1.shape[0],d4.shape[0]))
     print("del by duplicated_cols{} => {}".format(d2.shape[0],d3.shape[0]))
-    return d1.merge(d3, how='left', on='key').pred.fillna(0)
+    #d5 = d4.merge(d3, how='inner', on='key')#重複は結構多いのでどれかが当たるのを期待する、時系列columnsを探してextra_colsに追加する
+
+    d = d1.merge(d3, how='left', on='key')
+    gc.collect()
+    return d.pred.fillna(0)
 
 def compiled_leak_result(use_train=True):
-    if use_train:
+    use_cols = ["ID"] + cols
+    if use_train == True:
         df = train
+        use_cols = ["ID","target"] + cols
     else:
         df = test
-
-    use_cols = ["ID","target"] + cols
+      
     for ef in extra_cols:
         use_cols += ef
 
-    max_nlags = len(use_cols) - 2
+    max_nlags = len(cols) - 2
     df_leak = df[use_cols]
 
     df_leak["compiled_leak"] = 0
@@ -120,11 +129,14 @@ def compiled_leak_result(use_train=True):
         )
         zeroleak = df_leak["compiled_leak"]==0
         df_leak.loc[zeroleak, "compiled_leak"] = df_leak.loc[zeroleak, c]
-        leaky_value_counts.append(sum(train_leak["compiled_leak"] > 0))
-        _correct_counts = sum(train_leak["compiled_leak"]==train_leak["target"])
-        print("{} of correct leaks values in train ".format(leaky_value_corrects[-1]))
+        leaky_value_counts.append(sum(df_leak["compiled_leak"] > 0))
+    
+        print("{} of count leaks values".format(leaky_value_counts[-1]))
 
-        if train:
+        if use_train:
+            _correct_counts = sum(df_leak["compiled_leak"]==df_leak["target"])
+            leaky_value_corrects.append(_correct_counts)
+            print("{} of correct_leaks values".format(leaky_value_corrects[-1]))
             tmp = df_leak.copy()
             tmp.loc[zeroleak, "compiled_leak"] = tmp.loc[zeroleak, "nonzero_mean"]
             scores.append(np.sqrt(mean_squared_error(y, np.log1p(tmp["compiled_leak"]).fillna(14.49))))
@@ -149,47 +161,38 @@ def rewrite_compiled_leak(leak_df, lag):
         leak_df.loc[zeroleak, "compiled_leak"] = leak_df.loc[zeroleak, c]
     return leak_df
 
-
-
 def main():
-   
-
     #test, non_ugly_indexes, ugly_indexes = get_beautiful_test(test)
     ugly_indexes = np.load('test_ugly_indexes.npy')
-    nou_ugly_indexes = np.load("test_non_ugly_indexes.npy")
+    non_ugly_indexes = np.load("test_non_ugly_indexes.npy")
     test["target"] = train["target"].mean()
 
     train_leak, result = compiled_leak_result()
-
     result = pd.DataFrame.from_dict(result, orient='columns')
-    result.to_csv('train_leaky_stat.csv', index=False)
-
+    result.to_csv(DATA_DIR+'train_leaky_stat.csv', index=False)
     best_score = np.min(result['score'])
     best_lag = np.argmin(result['score'])
     print('best_score', best_score, '\nbest_lag', best_lag)
-    
+ 
     leaky_cols = [c for c in train_leak.columns if 'leaked_target_' in c]
     train_leak = rewrite_compiled_leak(train_leak, best_lag)
-
     train_res = train_leak[leaky_cols+['compiled_leak']].replace(0.0, np.nan)
-    train_res.to_csv('train_leak.csv', index=False)
+    train_res.to_csv(DATA_DIR+'train_leak.csv', index=False)
+    gc.collect()
 
-    
-    test_leak, test_result = compiled_leak_result_test(max_nlags=38)
+    test_leak, test_result = compiled_leak_result(use_train = False)
     test_result = pd.DataFrame.from_dict(test_result, orient='columns')
-    test_result.to_csv('test_leaky_stat.csv', index=False)
-
+    test_result.to_csv(DATA_DIR+'test_leaky_stat.csv', index=False)
     test_leak = rewrite_compiled_leak(test_leak, best_lag)
-
     test_res = test_leak[leaky_cols+['compiled_leak']].replace(0.0, np.nan)
-    test_res.to_csv('./data/test_leak.csv', index=False)
-
+    test_res.to_csv(DATA_DIR+'test_leak.csv', index=False)
     test_leak.loc[test_leak["compiled_leak"]==0, "compiled_leak"] = test_leak.loc[test_leak["compiled_leak"]==0, "nonzero_mean"]
+    gc.collect()
 
-    sub = pd.read_csv(DATA_DIR+"test.csv", usecols=["ID"])
+    sub = pd.read_csv(INPUT_DIR+"test.csv", usecols=["ID"])
     sub["target"] = 0
-    sub.iloc[non_ugly_indexes, 1] = test_leak["compiled_leak"].values
-    sub.to_csv(f"non_fake_sub_lag_{best_lag}.csv", index=False)
+    sub.loc[non_ugly_indexes, "target"] = test_leak["compiled_leak"].values
+    sub.to_csv(OUTPUT_DIR+f"non_fake_sub_lag_{best_lag}.csv", index=False)
     print(f"non_fake_sub_lag_{best_lag}.csv saved")
     
 if __name__ == "__main__":
