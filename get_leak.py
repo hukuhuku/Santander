@@ -143,7 +143,6 @@ def main():
     sub = pd.read_csv(INPUT_DIR+"test.csv", usecols=["ID"])
     sub["target"] =  test_leak["compiled_leak"].values
     sub.to_csv(OUTPUT_DIR+"non_fake_sub_lag_{}.csv".format(best_lag), index=False)
-    print(f"non_fake_sub_lag_{best_lag}.csv saved")
 
 if __name__ == "__main__":
     main()
