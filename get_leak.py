@@ -42,27 +42,26 @@ for ef in extra_cols:
     use_cols += ef
 
 def fast_get_leak(df, cols,extra_feats, lag=0):
-    f1 = cols[:-lag-2]
-    f2 = cols[lag+2:]
-
+    f1 = cols[:((lag+2) * -1)]
+    f2 = cols[(lag+2):]
     for ef in extra_feats:
-        f1 += ef[:-lag-2]
-        f2 += ef[lag+2:]
-        
+        f1 += ef[:((lag+2) * -1)]
+        f2 += ef[(lag+2):]
+    
     d1 = df[f1].apply(tuple, axis=1).to_frame().rename(columns={0: 'key'})
-    d2 = df[f2].apply(tuple, axis=1).to_frame().rename(columns={0: 'key'})
+    d1.to_csv('extra_d1.csv')
+    d2 = df[f2].apply(tuple, axis=1).to_frame().rename(columns={0: 'key'}) 
+
     d2['pred'] = df[cols[lag]]
+#     d2.to_csv('extra_d2.csv')
+    #d2 = d2[d2.pred != 0] ### to make output consistent with Hasan's function
     d3 = d2[~d2.duplicated(['key'], keep=False)]
     d4 = d1[~d1.duplicated(['key'], keep=False)]
     d5 = d4.merge(d3, how='inner', on='key')
     
     d6 = d1.merge(d5, how='left', on='key')
     d6.to_csv('extra_d6.csv')
-        
-    print("del by duplicated_cols{} => {}".format(d1.shape[0],d4.shape[0]))
-    print("del by duplicated_cols{} => {}".format(d2.shape[0],d3.shape[0]))
     
-    gc.collect()
     return d1.merge(d5, how='left', on='key').pred.fillna(0)
 
 def compiled_leak_result(use_train=True,best_lag=None):
@@ -93,7 +92,8 @@ def compiled_leak_result(use_train=True,best_lag=None):
         df_leak = df.join(
             df_leak.set_index("ID")[leaky_cols+["compiled_leak", "nonzero_mean"]], 
             on="ID", how="left"
-        )
+        )[use_cols+leaky_cols+["compiled_leak","nonzero_mean"]]
+
         zeroleak = df_leak["compiled_leak"]==0
         df_leak.loc[zeroleak, "compiled_leak"] = df_leak.loc[zeroleak, c]
         leaky_value_counts.append(sum(df_leak["compiled_leak"] > 0))
@@ -127,8 +127,8 @@ def rewrite_compiled_leak(leak_df, lag):
         leak_df.loc[zeroleak, "compiled_leak"] = leak_df.loc[zeroleak, c]
     return leak_df
 
+
 def main():
-    
     train_leak,train_result = compiled_leak_result(use_train=True)
     best_lag = np.argmin(train_result['score'])
     print("best_lag",best_lag)
