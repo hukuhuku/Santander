@@ -128,21 +128,21 @@ def rewrite_compiled_leak(leak_df, lag):
     return leak_df
 
 def main():
-    """
+    
     train_leak,train_result = compiled_leak_result(use_train=True)
     best_lag = np.argmin(train_result['score'])
     print("best_lag",best_lag)
-    """
+    
     test_leak,test_result = compiled_leak_result(use_train=False)
 
-    test_leak = rewrite_compiled_leak(test_leak,lag=37)
-    
+    test_leak = rewrite_compiled_leak(test_leak,lag=best_lag)
+    test_leak.to_csv("test_leak.csv",index=True)
     test_leak.loc[test_leak["compiled_leak"]==0, "compiled_leak"] = test_leak.loc[test_leak["compiled_leak"]==0, "nonzero_mean"]
     gc.collect()
-    test_leak.to_csv("test_leak.csv",index=True)
+    
     sub = pd.read_csv(INPUT_DIR+"test.csv", usecols=["ID"])
     sub["target"] =  test_leak["compiled_leak"].values
-    sub.to_csv(OUTPUT_DIR+f"non_fake_sub_lag_{best_lag}.csv", index=False)
+    sub.to_csv(OUTPUT_DIR+"non_fake_sub_lag_{}.csv".format(best_lag), index=False)
     print(f"non_fake_sub_lag_{best_lag}.csv saved")
 
 if __name__ == "__main__":
