@@ -70,32 +70,30 @@ def fit_predict(data, y, test):
 
 def main():
     # Get the data
-    feats = ["timespan"]
+    feats = ["RandomProjection","tSVD","statics","timespan"]
     name = "_and_".join(feats)
 
     print(name+" modeling start")
     
     train, test = get_data(feats,converting=True)
-    train = train[train["index"].notna()]
-    test = test[test["index"].notna()]
+
     train.set_index("index",inplace=True)
     test.set_index("index",inplace=True)
     sub = get_leak_submission()
-    y = train[['ID', 'target']].copy()
-    del(train["ID"])
-    del(test["ID"])
+
     
+    train_leak = pd.read_csv("./data/train_leak.csv")
     test_leak = pd.read_csv("./data/test_leak.csv")
+
+    y = pd.read_csv("./input/train.csv").loc[train_leak["compiled_leak"] == 0,["ID","target"]]
     del(test_leak["Unnamed: 0"])
-    del(train["target"])
     
+
     # Free some memory
     gc.collect()
 
     oof_preds, sub_preds = fit_predict(train, y, test)
-    print(train.shape)
-    print(test.shape)
-    print(len(sub_preds))
+
     sub["target"] = test_leak["compiled_leak"]
     sub.loc[sub["target"] == 0,"target"] = np.expm1(sub_preds)
     sub[['ID', 'target']].to_csv('./output/{}_lgbm.csv'.format(name), index=False)
