@@ -71,9 +71,14 @@ class Feature(metaclass=ABCMeta):
         raise NotImplementedError
     
     def save(self):
-        self.train.to_feather(str(self.train_path))
-        self.test.to_feather(str(self.test_path))
-
+        try:
+            self.train.to_feather(str(self.train_path))
+            self.test.to_feather(str(self.test_path))
+        except:
+            self.train.reset_index(inplace=True)
+            self.test.reset_index(inplace=True)
+            self.train.to_feather(str(self.train_path))
+            self.test.to_feather(str(self.test_path))
 
 def get_data(feats=None,converting=False):
     if converting:
