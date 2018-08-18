@@ -70,41 +70,35 @@ def fit_predict(data, y, test):
 
 def main():
     # Get the data
-    feats = ["RandomProjection","statics","Principal_Component_Analysis"]
+    feats = ["timespan"]
     name = "_and_".join(feats)
 
     print(name+" modeling start")
     
-    data, test = get_data(feats)
+    train, test = get_data(feats,converting=True)
+    train = train[train["index"].notna()]
+    test = test[test["index"].notna()]
+    train.set_index("index",inplace=True)
+    test.set_index("index",inplace=True)
     sub = get_leak_submission()
-    leak_indexes,non_leak_indexes = get_leak_indexes()
-    #_,non_ugly_indexes = get_leak_indexes()
-    
+    y = train[['ID', 'target']].copy()
+    del(train["ID"])
     del(test["ID"])
+    
+    test_leak = pd.read_csv("./data/test_leak.csv")
+    del(test_leak["Unnamed: 0"])
+    del(train["target"])
+    
     # Free some memory
     gc.collect()
 
-    tmp = test.loc[leak_indexes]
-    tmp["target"] = sub.loc[leak_indexes,"target"]
-
-    data = pd.concat((data, tmp), axis=0, ignore_index=True)
-    y = data[['ID', 'target']].copy()
-    del data['target'], data['ID']
-
-    #oof_preds, sub_preds = fit_predict(data, y, test.loc[non_leak_indexes])
-
-    test = pd.read_csv("./input/test.csv")
-    del(test["ID"])
-    cols = get_timecolumns()
-    sub.loc[non_leak_indexes,"target"] = test.loc[non_leak_indexes,cols].apply(
-        lambda x: np.expm1(np.log1p(x[x!=0]).mean()), axis=1
-    )
-    print(sub)
-    sub.loc[sub["target"].isnull(),"target"] = test.loc[sub["target"].isnull()].apply(
-        lambda x: np.expm1(np.log1p(x[x!=0]).mean()), axis=1
-    )
-    print(sub) 
-    sub[['ID', 'target']].to_csv('./output/nonzeromean_lgbm.csv'.format(name), index=False)
+    oof_preds, sub_preds = fit_predict(train, y, test)
+    print(train.shape)
+    print(test.shape)
+    print(len(sub_preds))
+    sub["target"] = test_leak["compiled_leak"]
+    sub.loc[sub["target"] == 0,"target"] = np.expm1(sub_preds)
+    sub[['ID', 'target']].to_csv('./output/{}_lgbm.csv'.format(name), index=False)
 
 
 if __name__ == '__main__':
