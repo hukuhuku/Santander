@@ -53,7 +53,7 @@ def fast_get_leak(df, cols,extra_feats, lag=0):
     d2 = df[f2].apply(tuple, axis=1).to_frame().rename(columns={0: 'key'}) 
 
     d2['pred'] = df[cols[lag]]
-#     d2.to_csv('extra_d2.csv')
+    #d2.to_csv('extra_d2.csv')
     #d2 = d2[d2.pred != 0] ### to make output consistent with Hasan's function
     d3 = d2[~d2.duplicated(['key'], keep=False)]
     d4 = d1[~d1.duplicated(['key'], keep=False)]
@@ -64,60 +64,83 @@ def fast_get_leak(df, cols,extra_feats, lag=0):
     
     return d1.merge(d5, how='left', on='key').pred.fillna(0)
 
-def compiled_leak_result(use_train=True,best_lag=None):
-    if use_train:
-        df = train
-    else:
-        df = test
-        use_cols.remove("target")
-
-    df_leak = df[use_cols]
-    df_leak["compiled_leak"] = 0
-    df_leak["nonzero_mean"] = df[transact_cols].apply(
+def compiled_leak_result():
+    max_nlags = len(cols)-2
+    train_leak = train[["ID", "target"] + cols]
+    train_leak["compiled_leak"] = 0
+    train_leak["nonzero_mean"] = train[transact_cols].apply(
         lambda x: np.expm1(np.log1p(x[x!=0]).mean()), axis=1
     )
-
+    scores = []
     leaky_value_counts = []
     leaky_value_corrects = []
     leaky_cols = []
-    scores = []
     
+    for i in range(max_nlags):
+        c = "leaked_target_"+str(i)
+        print('Processing lag', i)
+        #train_leak[c] = _get_leak(train, cols,l, i)
+        train_leak[c] = fast_get_leak(train, cols,extra_cols, i)
+        
+        leaky_cols.append(c)
+        train_leak = train.join(
+            train_leak.set_index("ID")[leaky_cols+["compiled_leak", "nonzero_mean"]], 
+            on="ID", how="left"
+        )[["ID", "target"] + cols + leaky_cols+["compiled_leak", "nonzero_mean"]]
+        zeroleak = train_leak["compiled_leak"]==0
+        train_leak.loc[zeroleak, "compiled_leak"] = train_leak.loc[zeroleak, c]
+        leaky_value_counts.append(sum(train_leak["compiled_leak"] > 0))
+        _correct_counts = sum(train_leak["compiled_leak"]==train_leak["target"])
+        leaky_value_corrects.append(_correct_counts*1.0/leaky_value_counts[-1])
+        print("Leak values found in train", leaky_value_counts[-1])
+        print(
+            "% of correct leaks values in train ", 
+            leaky_value_corrects[-1]
+        )
+        tmp = train_leak.copy()
+        tmp.loc[zeroleak, "compiled_leak"] = tmp.loc[zeroleak, "nonzero_mean"]
+        print('Na count',tmp.compiled_leak.isna().sum())
+        scores.append(np.sqrt(mean_squared_error(y, np.log1p(tmp["compiled_leak"]).fillna(14.49))))
+        print(
+            'Score (filled with nonzero mean)', 
+            scores[-1]
+        )
+    result = dict(
+        score=scores, 
+        leaky_count=leaky_value_counts,
+        leaky_correct=leaky_value_corrects,
+    )
+    return train_leak, result
+def compiled_leak_result_test(max_nlags):
+    test_leak = test[["ID"] + cols]
+    test_leak["compiled_leak"] = 0
+    test_leak["nonzero_mean"] = test[transact_cols].apply(
+        lambda x: np.expm1(np.log1p(x[x!=0]).mean()), axis=1
+    )
+    
+    scores = []
+    leaky_value_counts = []
+    leaky_cols = []
     for i in range(max_nlags):
         c = "leaked_target_"+str(i)
         
         print('Processing lag', i)
-        df_leak[c] = fast_get_leak(df_leak,cols,extra_cols,i)
+        test_leak[c] = fast_get_leak(test, cols,extra_cols, i)
         
         leaky_cols.append(c)
-        df_leak = df.join(
-            df_leak.set_index("ID")[leaky_cols+["compiled_leak", "nonzero_mean"]], 
+        test_leak = test.join(
+            test_leak.set_index("ID")[leaky_cols+["compiled_leak", "nonzero_mean"]], 
             on="ID", how="left"
-        )[use_cols+leaky_cols+["compiled_leak","nonzero_mean"]]
-
-        zeroleak = df_leak["compiled_leak"]==0
-        df_leak.loc[zeroleak, "compiled_leak"] = df_leak.loc[zeroleak, c]
-        leaky_value_counts.append(sum(df_leak["compiled_leak"] > 0))
-    
-        print("{} of count leaks values".format(leaky_value_counts[-1]))
-
-        if use_train:
-            _correct_counts = sum(df_leak["compiled_leak"]==df_leak["target"])
-            leaky_value_corrects.append(_correct_counts)
-            print("{} of correct_leaks values".format(leaky_value_corrects[-1]))
-            tmp = df_leak.copy()
-            tmp.loc[zeroleak, "compiled_leak"] = tmp.loc[zeroleak, "nonzero_mean"]
-            scores.append(np.sqrt(mean_squared_error(y, np.log1p(tmp["compiled_leak"]).fillna(14.49))))
-            print('Score (filled with nonzero mean)', scores[-1])
-    if use_train:
-        result = dict(
-            score=scores, 
-            leaky_count=leaky_value_counts,
-            leaky_correct=leaky_value_corrects,
-        )
-    else:
-        result = dict(leaky_count = leaky_value_counts)
-    
-    return df_leak, result
+        )[["ID"] + cols + leaky_cols+["compiled_leak", "nonzero_mean"]]
+        zeroleak = test_leak["compiled_leak"]==0
+        test_leak.loc[zeroleak, "compiled_leak"] = test_leak.loc[zeroleak, c]
+        leaky_value_counts.append(sum(test_leak["compiled_leak"] > 0))
+        print("Leak values found in test", leaky_value_counts[-1])
+ 
+    result = dict(
+        leaky_count=leaky_value_counts,
+    )
+    return test_leak, result
 
 def rewrite_compiled_leak(leak_df, lag):
     leak_df["compiled_leak"] = 0
@@ -129,14 +152,15 @@ def rewrite_compiled_leak(leak_df, lag):
 
 
 def main():
-    train_leak,train_result = compiled_leak_result(use_train=True)
+    train_leak,train_result = compiled_leak_result()
     best_lag = np.argmin(train_result['score'])
     print("best_lag",best_lag)
-    
-    test_leak,test_result = compiled_leak_result(use_train=False)
+    train_leak.to_csv(DATA_DIR+"train_leak.csv",index=False)
+    best_lag = 36
+    test_leak,test_result = compiled_leak_result_test(max_nlags=38)
 
     test_leak = rewrite_compiled_leak(test_leak,lag=best_lag)
-    test_leak.to_csv("test_leak.csv",index=True)
+    test_leak.to_csv(DATA_DIR+"test_leak.csv",index=True)
     test_leak.loc[test_leak["compiled_leak"]==0, "compiled_leak"] = test_leak.loc[test_leak["compiled_leak"]==0, "nonzero_mean"]
     gc.collect()
     
