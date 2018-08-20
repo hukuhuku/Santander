@@ -8,6 +8,8 @@ from sklearn import random_projection
 from sklearn.decomposition import TruncatedSVD
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection._split import check_cv
+from sklearn.base import clone, is_classifier
+
 from sklearn.decomposition import PCA
 
 from base import *
@@ -88,9 +90,9 @@ class statics(Feature):
 
         del(tmp_train)
         del(tmp_test)
-"""
-class rfc(Feature):
-    def get_rfc():
+
+class rfc_label_5(Feature):
+    def get_rfc(self):
         return RandomForestClassifier(
         n_estimators=100,
         max_features=0.5,
@@ -104,10 +106,10 @@ class rfc(Feature):
     def _get_labels(self, y):
         y_labels = np.zeros(len(y))
         y_us = np.sort(np.unique(y))
-        step = int(len(y_us) / self.n_classes)
+        step = int(len(y_us) / self.n_class)
         
-        for i_class in range(self.n_classes):
-            if i_class + 1 == self.n_classes:
+        for i_class in range(self.n_class):
+            if i_class + 1 == self.n_class:
                 y_labels[y >= y_us[i_class * step]] = i_class
             else:
                 y_labels[
@@ -118,18 +120,46 @@ class rfc(Feature):
                 ] = i_class
         return y_labels
 
-    def create_features(self,n_cv=4):
-        y = train["target"]
-        y_labels = self._get_labels(y)
-        cv = check_cv(n_cv, y_labels, classifier=is_classifier(estimator))
+    def create_features(self):
+        self.n_class = 5
+        self.cv = 5
         estimator = self.get_rfc()
         estimators = []
-        for X,_ in cv.split(train,y_labels):
-            self.estimators_.append(
-                clone(estimator).fit(X[train], y_labels[train])
+        y_labels = self._get_labels(y)
+        cv = check_cv(self.cv, y_labels, classifier=is_classifier(estimator))
+        
+        
+        for tr_idx,_ in cv.split(train,y_labels):
+            estimators.append(
+                clone(estimator).fit(train.loc[tr_idx], y_labels[tr_idx])
             )
-        cv = check_cv(n_cv, y, classifier=is_classifier(estimator))
-"""
+        train_prob = np.zeros([train.shape[0],self.n_class])
+        train_pred = np.zeros(train.shape[0])
+
+        test_prob = np.zeros([test.shape[0],self.n_class])
+        test_pred = np.zeros(test.shape[0])
+
+        cv = check_cv(self.cv, classifier=is_classifier(estimator))
+        for estimator, (_, te_idx) in zip(estimators, cv.split(train)):
+            train_prob[te_idx] = estimator.predict_proba(train.loc[te_idx])
+            train_pred[te_idx] = estimator.predict(train.loc[te_idx])
+
+        for estimator, (_, te_idx) in zip(estimators, cv.split(test)):
+            test_prob[te_idx] = estimator.predict_proba(test.loc[te_idx])
+            test_pred[te_idx] = estimator.predict(test.loc[te_idx])
+        
+        tmp_train = pd.DataFrame(train_prob)
+        tmp_test  = pd.DataFrame(test_prob)
+        tmp_train["class_pred"] =  np.array([train_pred]).T
+        tmp_test["class_pred"] = np.array([test_pred]).T
+        
+        columns = ["{}_prob".format(i) for i in range(self.n_class)] + ["class_pred"]
+        tmp_train.columns = columns
+        tmp_test.column = columns
+
+        self.train = tmp_train
+        self.test =  tmp_test
+        
 
 class timespan(Feature):
     def create_features(self):
@@ -208,7 +238,7 @@ if __name__ == '__main__':
 
     #train = train[train_leak["compiled_leak"] == 0]
     #test = test[test_leak["compiled_leak"] == 0]
-
+    y = train["target"]
     train = train.drop(["ID","target"],axis=1)
     test = test.drop("ID",axis=1)
     
