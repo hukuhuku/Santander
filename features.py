@@ -25,42 +25,116 @@ class select_features(Feature):
         self.train = train[select]
         self.test = test[select]
 
-
-class statics(Feature):
+class subsets_statics(Feature):
     def create_features(self):
-        train_zeros = pd.DataFrame({'Percent_zero': ((train.values) == 0).mean(axis=0),
-                                'Column': train.columns})
-    
-        high_vol_columns = train_zeros['Column'][train_zeros['Percent_zero'] < 0.70].values
-        low_vol_columns = train_zeros['Column'][train_zeros['Percent_zero'] >= 0.70].values
-        
-        #train=train.replaceにするとtrainがローカル変数になってしまう
-        tmp_train = train.replace({0:np.nan})
-        tmp_test = test.replace({0:np.nan})
+         extra_columns = get_extra_columns()
+         i = 0
+         for cols in extra_columns:
+            i += 1 
+            tmp_train = train[cols].replace({0:np.nan})
+            tmp_test = test[cols].replace({0:np.nan})
 
-        cluster_sets = {"low":low_vol_columns, "high":high_vol_columns}
-        for cluster_key in cluster_sets:
             for df,self_df in [(tmp_train,self.train),(tmp_test,self.test)]:
-                self_df["count_not0_"+cluster_key] = df[cluster_sets[cluster_key]].count(axis=1)
-                self_df["sum_"+cluster_key] = df[cluster_sets[cluster_key]].sum(axis=1)
-                self_df["var_"+cluster_key] = df[cluster_sets[cluster_key]].var(axis=1)
-                self_df["median_"+cluster_key] = df[cluster_sets[cluster_key]].median(axis=1)
-                self_df["mean_"+cluster_key] = df[cluster_sets[cluster_key]].mean(axis=1)
-                self_df["std_"+cluster_key] = df[cluster_sets[cluster_key]].std(axis=1)
-                self_df["max_"+cluster_key] = df[cluster_sets[cluster_key]].max(axis=1)
-                self_df["min_"+cluster_key] = df[cluster_sets[cluster_key]].min(axis=1)
-                self_df["skew_"+cluster_key] = df[cluster_sets[cluster_key]].skew(axis=1)
-                self_df["kurtosis_"+cluster_key] = df[cluster_sets[cluster_key]].kurtosis(axis=1)
+                self_df["subset{}_count_not0".format(i)] = df.count(axis=1)
+                self_df["subset{}_sum".format(i)] = df.sum(axis=1)
+                self_df["subset{}_var".format(i)] = df.var(axis=1)
+                self_df["subset{}_median".format(i)] = df.median(axis=1)
+                self_df["subset{}_mean".format(i)] = df.mean(axis=1)
+                self_df["subset{}_std".format(i)] = df.std(axis=1)
+                self_df["subset{}_max".format(i)] = df.max(axis=1)
+                self_df["subset{}_min".format(i)] = df.min(axis=1)
+                self_df["subset{}_skew".format(i)] = df.skew(axis=1)
+                self_df["subset{}_kurtosis".format(i)] = df.kurtosis(axis=1)
+
+             
+class leak_columns_statics(Feature):
+    def create_features(self):
+        cols = get_leak_columns()
+        tmp_train = train[cols].replace({0:np.nan})
+        tmp_test = test[cols].replace({0:np.nan})
+
+        for df,self_df in [(tmp_train,self.train),(tmp_test,self.test)]:
+            self_df["leak_columns_count_not0"] = df.count(axis=1)
+            self_df["leak_columns_sum"] = df.sum(axis=1)
+            self_df["leak_columns_var"] = df.var(axis=1)
+            self_df["leak_columns_median"] = df.median(axis=1)
+            self_df["leak_columns_mean"] = df.mean(axis=1)
+            self_df["leak_columns_std"] = df.std(axis=1)
+            self_df["leak_columns_max"] = df.max(axis=1)
+            self_df["leak_columns_min"] = df.min(axis=1)
+            self_df["leak_columns_skew"] = df.skew(axis=1)
+            self_df["leak_columns_kurtosis"] = df.kurtosis(axis=1)
 
         del(tmp_train)
         del(tmp_test)
 
+class statics(Feature):
+    def create_features(self):
+        #train=train.replaceにするとtrainがローカル変数になってしまう
+        tmp_train = train.replace({0:np.nan})
+        tmp_test = test.replace({0:np.nan})
 
-    
+        for df,self_df in [(tmp_train,self.train),(tmp_test,self.test)]:
+            self_df["count_not0"] = df.count(axis=1)
+            self_df["sum"] = df.sum(axis=1)
+            self_df["var"] = df.var(axis=1)
+            self_df["median"] = df.median(axis=1)
+            self_df["mean"] = df.mean(axis=1)
+            self_df["std"] = df.std(axis=1)
+            self_df["max"] = df.max(axis=1)
+            self_df["min"] = df.min(axis=1)
+            self_df["skew"] = df.skew(axis=1)
+            self_df["kurtosis"] = df.kurtosis(axis=1)
+
+        del(tmp_train)
+        del(tmp_test)
+"""
+class rfc(Feature):
+    def get_rfc():
+        return RandomForestClassifier(
+        n_estimators=100,
+        max_features=0.5,
+        max_depth=None,
+        max_leaf_nodes=270,
+        min_impurity_decrease=0.0001,
+        random_state=123,
+        n_jobs=-1
+    )
+
+    def _get_labels(self, y):
+        y_labels = np.zeros(len(y))
+        y_us = np.sort(np.unique(y))
+        step = int(len(y_us) / self.n_classes)
+        
+        for i_class in range(self.n_classes):
+            if i_class + 1 == self.n_classes:
+                y_labels[y >= y_us[i_class * step]] = i_class
+            else:
+                y_labels[
+                    np.logical_and(
+                        y >= y_us[i_class * step],
+                        y < y_us[(i_class + 1) * step]
+                    )
+                ] = i_class
+        return y_labels
+
+    def create_features(self,n_cv=4):
+        y = train["target"]
+        y_labels = self._get_labels(y)
+        cv = check_cv(n_cv, y_labels, classifier=is_classifier(estimator))
+        estimator = self.get_rfc()
+        estimators = []
+        for X,_ in cv.split(train,y_labels):
+            self.estimators_.append(
+                clone(estimator).fit(X[train], y_labels[train])
+            )
+        cv = check_cv(n_cv, y, classifier=is_classifier(estimator))
+"""
+
 class timespan(Feature):
     def create_features(self):
         cols = get_leak_columns()
-        for time in [3,10,20,30,len(cols)]:
+        for time in [10,20,30,len(cols)]:
             for df,self_df in [(train,self.train),(test,self.test)]:
                 tmp_df = df[cols[:time]].replace({0:np.nan})
                 self_df["mean_{}".format(time)] = tmp_df.mean(axis=1)
@@ -129,15 +203,14 @@ class tSVD(Feature):
 if __name__ == '__main__':
     args = get_arguments()
 
-    train = pd.read_csv('input/train.csv').drop(["ID","target"],axis=1)
-    test = pd.read_csv('input/test.csv').drop("ID",axis=1)
+    train,test = get_input()
+    #train_leak,test_leak = get_leak_df()
 
-    train_leak = pd.read_csv("data/train_leak.csv")
-    test_leak = pd.read_csv("data/test_leak.csv")
-    del(test_leak["Unnamed: 0"])
+    #train = train[train_leak["compiled_leak"] == 0]
+    #test = test[test_leak["compiled_leak"] == 0]
 
-    train = train[train_leak["compiled_leak"] == 0]
-    test = test[test_leak["compiled_leak"] == 0]
+    train = train.drop(["ID","target"],axis=1)
+    test = test.drop("ID",axis=1)
     
     generate_features(globals(), args.force)
 
