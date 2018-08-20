@@ -15,6 +15,7 @@ from base import *
 gc.enable() 
 
 def fit_predict(data, y, test):
+    models = []
     folds = KFold(n_splits=5, shuffle=True, random_state=1)
     # Convert to lightgbm Dataset
     dtrain = lgb.Dataset(data=data, label=np.log1p(y['target']), free_raw_data=False)
@@ -61,43 +62,53 @@ def fit_predict(data, y, test):
         # Display current fold score
         print(mean_squared_error(np.log1p(y['target'].iloc[val_idx]),
                                  oof_preds[val_idx]) ** .5)
+        models.append(clf)
+    
     # Display Full OOF score (square root of a sum is not the sum of square roots)
+    score = mean_squared_error(np.log1p(y['target']), oof_preds) ** .5
     print('Full Out-Of-Fold score : %9.6f'
-          % (mean_squared_error(np.log1p(y['target']), oof_preds) ** .5))
+          % (score))
 
-    return oof_preds, sub_preds
+    return oof_preds, sub_preds,models,score
 
+def get_importance(models):
+    del_columns = []
+    for model in models:
+        gain = model.feature_importance('gain')
+        featureimp = pd.DataFrame({'feature':model.feature_name(), 
+                   'split':model.feature_importance('split'), 
+                   'gain':100 * gain / gain.sum()}).sort_values('gain', ascending=False)
+        del_columns += list(featureimp[-50:]["feature"].values)
+    del_columns = list(set(del_columns))
+
+    return del_columns
+        
 
 def main():
     # Get the data
-    feats = ["RandomProjection","tSVD","statics","timespan"]
+    feats = ["RandomProjection","tSVD","statics","select_features","Principal_Component_Analysis","timespan","leak_columns_statics","subsets_statics"]
     name = "_and_".join(feats)
-
     print(name+" modeling start")
     
-    train, test = get_data(feats,converting=True)
+    train, test = get_input(feats,converting=True)
+    print(train.columns)
 
-    train.set_index("index",inplace=True)
-    test.set_index("index",inplace=True)
-    sub = get_leak_submission()
+    train_leak,test_leak = get_leak_df()
+    y = pd.read_csv("./input/train.csv")#.loc[train_leak["compiled_leak"] == 0,["ID","target"]]
 
-    
-    train_leak = pd.read_csv("./data/train_leak.csv")
-    test_leak = pd.read_csv("./data/test_leak.csv")
-
-    y = pd.read_csv("./input/train.csv").loc[train_leak["compiled_leak"] == 0,["ID","target"]]
-    del(test_leak["Unnamed: 0"])
-    
-
-    # Free some memory
+    sub = get_submission()
+    sub["target"] = test_leak["compiled_leak"]
     gc.collect()
 
-    oof_preds, sub_preds = fit_predict(train, y, test)
+    oof_preds, sub_preds,models,score= fit_predict(train, y, test)
+    del_columns = get_importance(models)
+    train.drop(del_columns,axis=1)
+    test.drop(del_columns,axis=1)
+    oof_preds, sub_preds,models,score= fit_predict(train, y, test)
+    sub.loc[sub["target"] == 0,"target"] = np.expm1(sub_preds[sub["target"] == 0])
 
-    sub["target"] = test_leak["compiled_leak"]
-    sub.loc[sub["target"] == 0,"target"] = np.expm1(sub_preds)
-    sub[['ID', 'target']].to_csv('./output/{}_lgbm.csv'.format(name), index=False)
+    sub[['ID', 'target']].to_csv('./output/{}_lgbm_CV{}.csv'.format(name,score), index=False)
 
-
+    
 if __name__ == '__main__':
     main()
