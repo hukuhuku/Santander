@@ -80,20 +80,27 @@ class Feature(metaclass=ABCMeta):
             self.train.to_feather(str(self.train_path))
             self.test.to_feather(str(self.test_path))
 
-def get_data(feats=None,converting=False):
+def get_input(feats=None,converting=False):
     if converting:
         dfs = [pd.read_feather(f'./data/{f}_train.ftr') for f in feats]
-        dfs.append(pd.read_csv("./input/train.csv")[["ID","target"]])
+        #dfs.append(pd.read_csv("./input/train.csv")[["ID","target"]])
         X_train = pd.concat(dfs, axis=1)
         dfs = [pd.read_feather(f'./data/{f}_test.ftr') for f in feats]
-        dfs.append(pd.read_csv("./input/test.csv")["ID"])
+        #dfs.append(pd.read_csv("./input/test.csv")["ID"])
         X_test = pd.concat(dfs, axis=1)
+
     else:
         X_train = pd.read_csv("./input/train.csv")
         X_test = pd.read_csv("./input/test.csv")
     return X_train, X_test
 
+def get_leak_df():
+    train_leak = pd.read_csv("data/train_leak.csv")
+    test_leak = pd.read_csv("data/test_leak.csv")
+    del(test_leak["Unnamed: 0"])
 
+    return train_leak,test_leak
+    
 def get_leak_indexes():
     leak_indexes = np.load('./data/test_leak_indexes.npy')
     non_leak_indexes = np.load('./data/test_non_leak_indexes.npy')
@@ -106,9 +113,9 @@ def get_ugly_indexes():
 
     return ugly_indexes,non_ugly_indexes
 
-def get_leak_submission():
-    sub_leak = pd.read_csv('./output/baseline_leak.csv')
-    return sub_leak
+def get_submission():
+    sub = pd.read_csv('./input/sample_submission.csv')
+    return sub
 
 def get_leak_columns():
     return[
