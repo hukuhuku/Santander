@@ -1,4 +1,4 @@
-# 説明
+# コードの説明
 ## base.py
 get_input()などの基本的な関数,Featureなどのクラスが入ってる
 
@@ -8,8 +8,11 @@ get_input()などの基本的な関数,Featureなどのクラスが入ってる
 ## lgbm.py 
 学習を回す
 
-## それ以外
-leakを見つけるプログラム(kernel丸パクリ）、EDAなど（ipynbは適当に管理しすぎてあまり残ってない）
+## get_leak.py
+leakを見つけるプログラム(kernel丸パクリ）
+
+## そのほかipynb
+EDAなど（適当に管理しすぎてあまり残ってない）
 後で消すかも
 
 
