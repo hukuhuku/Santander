@@ -1,3 +1,21 @@
+#説明
+## base.py
+get_input()などの基本的な関数,Featureなどのクラスが入ってる
+
+## features.py
+特徴量を記述,コマンドラインで実行するとfeather形式で保存
+
+## lgbm.py 
+学習を回す
+
+## それ以外
+leakを見つけるプログラム(kernel丸パクリ）、EDAなど（ipynbは適当に管理しすぎてあまり残ってない）
+後で消すかも
+
+
+
+
+
 # Santander
 
 https://www.kaggle.com/c/santander-value-prediction-challenge
