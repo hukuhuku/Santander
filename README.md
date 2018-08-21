@@ -4,6 +4,18 @@ get_input()などの基本的な関数,Featureなどのクラスが入ってる
 
 ## features.py
 特徴量を記述,コマンドラインで実行するとfeather形式で保存
+以下特徴量の説明
+
+### timespan
+leakに直結する40columnsを機関で分けて統計量に変換する
+
+### statics
+全columnsの統計量
+
+### subsets_statics
+グループ別での統計量、leakのグループをそのまま使った
+
+
 
 ## lgbm.py 
 学習を回す
