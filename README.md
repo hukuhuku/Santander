@@ -1,4 +1,4 @@
-#説明
+# 説明
 ## base.py
 get_input()などの基本的な関数,Featureなどのクラスが入ってる
 
