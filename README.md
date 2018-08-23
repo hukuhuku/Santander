@@ -1,4 +1,4 @@
-# Santander_Value_Prediction (https://www.kaggle.com/c/santander-value-prediction-challenge)
+# Santander Value Prediction
 ====
 My submission to the Kaggle competition "Santander_Value_Prediction", ranked 149th over 4551 teams(TOP4%).
 
@@ -38,7 +38,6 @@ https://www.kaggle.com/nulldata/jiazhen-to-armamut-via-gurchetan1000-0-56
 
 ## ipynb　etc
 EDA,but I have not recorded much
-
 
 
 # Good_Kernel
