@@ -1,5 +1,5 @@
 # Santander Value Prediction
-====
+
 My submission to the Kaggle competition "Santander_Value_Prediction", ranked 149th over 4551 teams(TOP4%).
 
 I referred this article(https://amalog.hateblo.jp/entry/kaggle-feature-management) @SakuEji (his twitter)
